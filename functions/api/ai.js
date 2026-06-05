@@ -1,13 +1,14 @@
-// Cloudflare Pages Function - وسيط Claude API
+// Cloudflare Pages Function - وسيط Google Gemini API
 // المسار التلقائي: /api/ai
 // مع طابور وتخزين مؤقت لتحمّل الضغط العالي
 
-// تخزين مؤقت (يدوم خلال عمر الـ Worker)
 const cache = new Map();
 const CACHE_TTL = 60 * 60 * 1000; // ساعة
 const MAX_CACHE = 500;
 let activeRequests = 0;
 const MAX_CONCURRENT = 10;
+
+const GEMINI_MODEL = 'gemini-2.5-flash'; // النموذج المجاني السريع
 
 function cacheKey(body) {
   try {
@@ -40,22 +41,56 @@ const CORS = {
   'Content-Type': 'application/json'
 };
 
-// معالجة طلبات OPTIONS (CORS preflight)
+// تحويل رسائل Claude لصيغة Gemini
+function toGeminiFormat(messages) {
+  // ندمج كل المحتوى النصي والصور في contents
+  const contents = [];
+  for (const msg of messages) {
+    const role = msg.role === 'assistant' ? 'model' : 'user';
+    const parts = [];
+    if (typeof msg.content === 'string') {
+      parts.push({ text: msg.content });
+    } else if (Array.isArray(msg.content)) {
+      for (const block of msg.content) {
+        if (block.type === 'text') {
+          parts.push({ text: block.text });
+        } else if (block.type === 'image' && block.source) {
+          parts.push({
+            inline_data: {
+              mime_type: block.source.media_type || 'image/jpeg',
+              data: block.source.data
+            }
+          });
+        }
+      }
+    }
+    contents.push({ role, parts });
+  }
+  return contents;
+}
+
+// تحويل رد Gemini لصيغة Claude (حتى يفهمها التطبيق)
+function toClaudeFormat(geminiData) {
+  const text = geminiData?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+  return {
+    content: [{ type: 'text', text }]
+  };
+}
+
 export async function onRequestOptions() {
   return new Response('', { status: 200, headers: CORS });
 }
 
-// معالجة طلبات POST
 export async function onRequestPost(context) {
   const { request, env } = context;
 
   try {
     const body = await request.json();
-    const apiKey = env.ANTHROPIC_API_KEY;
+    const apiKey = env.GEMINI_API_KEY;
 
     if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: 'أضف ANTHROPIC_API_KEY في إعدادات Cloudflare' }),
+        JSON.stringify({ error: 'أضف GEMINI_API_KEY في إعدادات Cloudflare' }),
         { status: 500, headers: CORS }
       );
     }
@@ -81,22 +116,24 @@ export async function onRequestPost(context) {
     activeRequests++;
 
     try {
-      // 3) الاستدعاء مع إعادة المحاولة عند 429
-      let response, data, attempts = 0;
+      // 3) تحويل الرسائل وإرسالها لـ Gemini
+      const contents = toGeminiFormat(body.messages);
+      const maxTokens = body.max_tokens || 1500;
+
+      let response, geminiData, attempts = 0;
       const maxAttempts = 3;
 
       while (attempts < maxAttempts) {
-        response = await fetch('https://api.anthropic.com/v1/messages', {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+        response = await fetch(url, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01'
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            model: body.model || 'claude-sonnet-4-6',
-            max_tokens: body.max_tokens || 1500,
-            messages: body.messages
+            contents,
+            generationConfig: {
+              maxOutputTokens: maxTokens,
+              temperature: 0.7
+            }
           })
         });
 
@@ -114,16 +151,26 @@ export async function onRequestPost(context) {
         break;
       }
 
-      data = await response.json();
+      geminiData = await response.json();
 
-      // 4) خزّن الناجح
-      if (response.status === 200 && key && !data.error) {
-        cleanCache();
-        cache.set(key, { data, time: Date.now() });
+      // تحقق من أخطاء Gemini
+      if (geminiData.error) {
+        return new Response(
+          JSON.stringify({ error: { message: geminiData.error.message || 'خطأ من Gemini' } }),
+          { status: response.status, headers: CORS }
+        );
       }
 
-      return new Response(JSON.stringify(data), {
-        status: response.status,
+      // 4) حوّل الرد لصيغة Claude وخزّنه
+      const claudeFormat = toClaudeFormat(geminiData);
+
+      if (response.status === 200 && key) {
+        cleanCache();
+        cache.set(key, { data: claudeFormat, time: Date.now() });
+      }
+
+      return new Response(JSON.stringify(claudeFormat), {
+        status: 200,
         headers: { ...CORS, 'X-Cache': 'MISS' }
       });
 
