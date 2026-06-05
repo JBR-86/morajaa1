@@ -1214,7 +1214,7 @@ async function aiExplain(){
   const box=document.getElementById('explain-box'); box.style.display='block'; box.innerHTML='⏳ جاري الشرح...';
   document.getElementById('explain-btn').style.display='none';
   try{
-    const r=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,messages:[{role:'user',content:`اشرح هذا السؤال بالعربي بشكل مبسط في ٣-٤ جمل:\n\nالسؤال: ${q.text}\nالإجابة الصحيحة: ${q.options[q.correct]}`}]})});
+    const r=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,messages:[{role:'user',content:`اشرح هذا السؤال بالعربي بشكل مبسط في ٣-٤ جمل:\n\nالسؤال: ${q.text}\nالإجابة الصحيحة: ${q.options[q.correct]}`}]})});
     const data=await r.json(); box.innerHTML='🧠 '+data.content.map(c=>c.text||'').join('');
   }catch(e){box.innerHTML='تعذّر الاتصال، حاول لاحقاً'}
 }
@@ -1285,7 +1285,7 @@ async function genFromImg(){
   const msgs=['يقرأ الصورة...','يحلل المحتوى...','يولّد الأسئلة...','يتحقق من الإجابات...'];
   let mi=0; const mi2=setInterval(()=>{document.getElementById('scan-msg').textContent=msgs[mi++%msgs.length]},1800);
   try{
-    const r=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:window._scanB64}},{type:'text',text:`ولّد بالضبط ${scanQc} أسئلة MCQ باللغة العربية من هذه الصورة. أعد JSON فقط بلا أي نص آخر:\n{"questions":[{"text":"...","options":["أ","ب","ج","د"],"correct":0,"explain":"..."}]}`}]}]})});
+    const r=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:window._scanB64}},{type:'text',text:`ولّد بالضبط ${scanQc} أسئلة MCQ باللغة العربية من هذه الصورة. أعد JSON فقط بلا أي نص آخر:\n{"questions":[{"text":"...","options":["أ","ب","ج","د"],"correct":0,"explain":"..."}]}`}]}]})});
     clearInterval(mi2);
     if(!r.ok){const err=await r.text();throw new Error(`HTTP ${r.status}: ${err.slice(0,100)}`);}
     const data=await r.json();
@@ -1320,7 +1320,7 @@ async function genFromText(){
   let sid=resolveSubj(sv,'tg-new-name'); if(!sid) return;
   document.getElementById('tg-form').style.display='none'; document.getElementById('tg-loading').style.display='block';
   try{
-    const r=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,messages:[{role:'user',content:`ولّد بالضبط ${tgQc} أسئلة MCQ باللغة العربية عن الموضوع التالي:\n${topic}\n\nأعد JSON فقط بلا أي نص آخر:\n{"questions":[{"text":"...","options":["أ","ب","ج","د"],"correct":0,"explain":"..."}]}`}]})});
+    const r=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,messages:[{role:'user',content:`ولّد بالضبط ${tgQc} أسئلة MCQ باللغة العربية عن الموضوع التالي:\n${topic}\n\nأعد JSON فقط بلا أي نص آخر:\n{"questions":[{"text":"...","options":["أ","ب","ج","د"],"correct":0,"explain":"..."}]}`}]})});
     if(!r.ok){
       const err=await r.text();
       throw new Error(`HTTP ${r.status}: ${err.slice(0,200)}`);
@@ -1889,7 +1889,7 @@ async function generateSummary(){
   document.getElementById('sum-form').style.display='none';
   document.getElementById('sum-loading').style.display='block';
   try{
-    const r=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,messages:[{role:'user',content}]})});
+    const r=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,messages:[{role:'user',content}]})});
     if(!r.ok)throw new Error('HTTP '+r.status);
     const data=await r.json();
     if(data.error)throw new Error(data.error.message||'خطأ');
@@ -1932,7 +1932,7 @@ async function generatePredictedQ(){
   document.getElementById('pq-form').style.display='none';
   document.getElementById('pq-loading').style.display='block';
   try{
-    const r=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,messages:[{role:'user',content:`أنت خبير في الامتحانات المدرسية. ولّد بالضبط ${pqc} أسئلة اختيار من متعدد "متوقعة" بأسلوب الامتحانات الرسمية عن الموضوع التالي. اجعل الأسئلة بمستوى امتحاني حقيقي ومتنوعة الصعوبة:\n${topic}\n\nأعد JSON فقط:\n{"questions":[{"text":"...","options":["أ","ب","ج","د"],"correct":0,"explain":"..."}]}`}]})});
+    const r=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,messages:[{role:'user',content:`أنت خبير في الامتحانات المدرسية. ولّد بالضبط ${pqc} أسئلة اختيار من متعدد "متوقعة" بأسلوب الامتحانات الرسمية عن الموضوع التالي. اجعل الأسئلة بمستوى امتحاني حقيقي ومتنوعة الصعوبة:\n${topic}\n\nأعد JSON فقط:\n{"questions":[{"text":"...","options":["أ","ب","ج","د"],"correct":0,"explain":"..."}]}`}]})});
     if(!r.ok)throw new Error('HTTP '+r.status);
     const data=await r.json();
     if(data.error)throw new Error(data.error.message||'خطأ');
