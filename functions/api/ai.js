@@ -71,7 +71,9 @@ function toGeminiFormat(messages) {
 
 // تحويل رد Gemini لصيغة Claude (حتى يفهمها التطبيق)
 function toClaudeFormat(geminiData) {
-  const text = geminiData?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+  let text = geminiData?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+  // تنظيف: إزالة علامات الكود ```json ``` التي يضيفها Gemini أحياناً
+  text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
   return {
     content: [{ type: 'text', text }]
   };
