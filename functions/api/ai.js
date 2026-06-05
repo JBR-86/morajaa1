@@ -120,7 +120,14 @@ export async function onRequestPost(context) {
     try {
       // 3) تحويل الرسائل وإرسالها لـ Gemini
       const contents = toGeminiFormat(body.messages);
-      const maxTokens = body.max_tokens || 1500;
+      const maxTokens = Math.max(body.max_tokens || 2048, 4096); // Gemini يحتاج مساحة أكبر
+      // كشف هل الطلب يريد JSON (توليد أسئلة) أم نص (تلخيص)
+      const wantsJson = JSON.stringify(body.messages).includes('JSON') || JSON.stringify(body.messages).includes('questions');
+      const genConfig = {
+        maxOutputTokens: maxTokens,
+        temperature: 0.7
+      };
+      if (wantsJson) genConfig.responseMimeType = 'application/json';
 
       let response, geminiData, attempts = 0;
       const maxAttempts = 3;
@@ -132,10 +139,7 @@ export async function onRequestPost(context) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents,
-            generationConfig: {
-              maxOutputTokens: maxTokens,
-              temperature: 0.7
-            }
+            generationConfig: genConfig
           })
         });
 
