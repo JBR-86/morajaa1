@@ -8,7 +8,7 @@ const MAX_CACHE = 500;
 let activeRequests = 0;
 const MAX_CONCURRENT = 10;
 
-const GEMINI_MODEL = 'gemini-2.5-flash'; // النموذج المجاني السريع
+const GEMINI_MODEL = 'gemini-2.5-flash-lite'; // النموذج المجاني السريع
 
 function cacheKey(body) {
   try {
@@ -143,15 +143,15 @@ export async function onRequestPost(context) {
           })
         });
 
-        if (response.status === 429) {
+        if (response.status === 429 || response.status === 503) {
           attempts++;
           if (attempts < maxAttempts) {
-            await sleep(1000 * attempts);
+            await sleep(1500 * attempts); // انتظار تصاعدي
             continue;
           }
           return new Response(
-            JSON.stringify({ error: 'ضغط عالٍ حالياً، حاول بعد لحظات', retry: true }),
-            { status: 429, headers: CORS }
+            JSON.stringify({ error: 'الخدمة مشغولة حالياً، حاول بعد لحظات', retry: true }),
+            { status: response.status, headers: CORS }
           );
         }
         break;
