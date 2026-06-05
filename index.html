@@ -1285,7 +1285,7 @@ async function genFromImg(){
   const msgs=['يقرأ الصورة...','يحلل المحتوى...','يولّد الأسئلة...','يتحقق من الإجابات...'];
   let mi=0; const mi2=setInterval(()=>{document.getElementById('scan-msg').textContent=msgs[mi++%msgs.length]},1800);
   try{
-    const r=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:window._scanB64}},{type:'text',text:`ولّد بالضبط ${scanQc} أسئلة MCQ باللغة العربية من هذه الصورة. أعد JSON فقط بلا أي نص آخر:\n{"questions":[{"text":"...","options":["أ","ب","ج","د"],"correct":0,"explain":"..."}]}`}]}]})});
+    const r=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:window._scanB64}},{type:'text',text:`ولّد بالضبط ${scanQc} أسئلة اختيار من متعدد باللغة العربية من هذه الصورة. اجعل نص كل سؤال قصيراً (جملة واحدة) والشرح موجزاً. أعد JSON صالحاً ومكتملاً فقط:\n{"questions":[{"text":"السؤال","options":["خيار1","خيار2","خيار3","خيار4"],"correct":0,"explain":"الشرح"}]}`}]}]})});
     clearInterval(mi2);
     if(!r.ok){const err=await r.text();throw new Error(`HTTP ${r.status}: ${err.slice(0,100)}`);}
     const data=await r.json();
@@ -1320,7 +1320,7 @@ async function genFromText(){
   let sid=resolveSubj(sv,'tg-new-name'); if(!sid) return;
   document.getElementById('tg-form').style.display='none'; document.getElementById('tg-loading').style.display='block';
   try{
-    const r=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,messages:[{role:'user',content:`ولّد بالضبط ${tgQc} أسئلة MCQ باللغة العربية عن الموضوع التالي:\n${topic}\n\nأعد JSON فقط بلا أي نص آخر:\n{"questions":[{"text":"...","options":["أ","ب","ج","د"],"correct":0,"explain":"..."}]}`}]})});
+    const r=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,messages:[{role:'user',content:`ولّد بالضبط ${tgQc} أسئلة اختيار من متعدد باللغة العربية عن: ${topic}\n\nاجعل نص كل سؤال قصيراً ومباشراً (جملة واحدة)، والشرح موجزاً (جملة واحدة). أعد JSON صالحاً ومكتملاً فقط، بهذا الشكل بالضبط:\n{"questions":[{"text":"السؤال","options":["خيار1","خيار2","خيار3","خيار4"],"correct":0,"explain":"الشرح"}]}`}]})});
     if(!r.ok){
       const err=await r.text();
       throw new Error(`HTTP ${r.status}: ${err.slice(0,200)}`);

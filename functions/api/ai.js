@@ -8,7 +8,7 @@ const MAX_CACHE = 500;
 let activeRequests = 0;
 const MAX_CONCURRENT = 10;
 
-const GEMINI_MODEL = 'gemini-2.5-flash-lite'; // النموذج المجاني السريع
+const GEMINI_MODELS = ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-flash-latest']; // قائمة احتياطية
 
 function cacheKey(body) {
   try {
@@ -120,7 +120,7 @@ export async function onRequestPost(context) {
     try {
       // 3) تحويل الرسائل وإرسالها لـ Gemini
       const contents = toGeminiFormat(body.messages);
-      const maxTokens = Math.max(body.max_tokens || 2048, 4096); // Gemini يحتاج مساحة أكبر
+      const maxTokens = Math.max(body.max_tokens || 4096, 8192); // مساحة كبيرة لتجنب قطع JSON
       // كشف هل الطلب يريد JSON (توليد أسئلة) أم نص (تلخيص)
       const wantsJson = JSON.stringify(body.messages).includes('JSON') || JSON.stringify(body.messages).includes('questions');
       const genConfig = {
@@ -129,35 +129,47 @@ export async function onRequestPost(context) {
       };
       if (wantsJson) genConfig.responseMimeType = 'application/json';
 
-      let response, geminiData, attempts = 0;
-      const maxAttempts = 3;
+      let response, geminiData;
+      let success = false;
 
-      while (attempts < maxAttempts) {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
-        response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents,
-            generationConfig: genConfig
-          })
-        });
+      // جرّب كل نموذج في القائمة (fallback عند الازدحام)
+      outer:
+      for (const model of GEMINI_MODELS) {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+          response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents, generationConfig: genConfig })
+          });
 
-        if (response.status === 429 || response.status === 503) {
-          attempts++;
-          if (attempts < maxAttempts) {
-            await sleep(1500 * attempts); // انتظار تصاعدي
+          if (response.status === 200) { success = true; break outer; }
+
+          // 503 ازدحام: أعد المحاولة بنفس النموذج مرة، ثم انتقل للتالي
+          if (response.status === 503) {
+            if (attempt === 0) { await sleep(1200); continue; }
+            else break; // جرّب النموذج التالي
+          }
+          // 429 حد الطلبات: انتظر وأعد
+          if (response.status === 429) {
+            await sleep(1500 * (attempt + 1));
             continue;
           }
-          return new Response(
-            JSON.stringify({ error: 'الخدمة مشغولة حالياً، حاول بعد لحظات', retry: true }),
-            { status: response.status, headers: CORS }
-          );
+          // 404 النموذج غير موجود: انتقل للتالي فوراً
+          if (response.status === 404) break;
+          // خطأ آخر: توقف
+          break outer;
         }
-        break;
       }
 
       geminiData = await response.json();
+
+      if (!success && (response.status === 503 || response.status === 429)) {
+        return new Response(
+          JSON.stringify({ error: 'الخدمة مشغولة حالياً، انتظر دقيقة وحاول مجدداً', retry: true }),
+          { status: response.status, headers: CORS }
+        );
+      }
 
       // تحقق من أخطاء Gemini
       if (geminiData.error) {
